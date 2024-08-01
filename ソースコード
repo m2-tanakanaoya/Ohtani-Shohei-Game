@@ -1,0 +1,161 @@
+#include <iostream>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+#include <algorithm>
+#include <chrono>
+
+enum class Difficulty { EASY, MEDIUM, HARD };
+
+class Ohtanisan {
+public:
+    Ohtanisan(int digits, Difficulty difficulty)
+        : digits(digits), attempts(0), score(100), lives(3), difficulty(difficulty) {
+        setDifficulty();
+        generateNumber();
+    }
+
+    void play() {
+        auto gameStart = std::chrono::steady_clock::now();  // ゲーム開始時間の記録
+        std::string guess;
+        while (true) {
+            auto start = std::chrono::steady_clock::now();
+            std::cout << "予想した数字を入力してください (or '参りました' で正解発表): ";
+            std::cin >> guess;
+
+            if (guess == "参りました") {
+                std::cout << "正解は⇨: " << number << std::endl;
+                break;
+            }
+
+            if (guess.size() != digits) {
+                std::cout << digits << "桁の数字を入力してください。" << std::endl;
+                continue;
+            }
+
+            auto end = std::chrono::steady_clock::now();
+            std::chrono::duration<double> elapsed_seconds = end - start;
+            if (timeLimit.count() > 0 && elapsed_seconds.count() > timeLimit.count()) {
+                std::cout << "時間切れ! 正解は⇨ " << number << std::endl;
+                break;
+            }
+
+            attempts++;
+            auto result = checkGuess(guess);
+            std::cout << "ストライク: " << result.first << ", ボール: " << result.second << std::endl;
+            updateScore(result.first, result.second);
+
+            if (result.first == digits) {
+                auto gameEnd = std::chrono::steady_clock::now(); // ゲーム終了時間の記録
+                std::chrono::duration<double> totalTime = gameEnd - gameStart;
+                std::cout << "せいかいです!" << std::endl;
+                std::cout << "あなたの最終スコアは " << score << "/100"<< std::endl;
+                std::cout << "正解するまでにかかった時間: " << totalTime.count() << "秒" << std::endl;
+                break;
+            }
+
+            if (result.first == 0 && result.second == 0) {
+                lives--;
+                std::cout << "ストライクもボールもありませんでした。ライフが減ります。残りライフ: " << lives << std::endl;
+                if (lives == 0) {
+                    std::cout << "ライフが尽きました。 正解は⇨ " << number << std::endl;
+                    break;
+                }
+            }
+
+            if (hintFrequency > 0 && attempts % hintFrequency == 0) {
+                giveHint();
+            }
+
+            if (attempts % specialRoundFrequency == 0) {
+                specialRound();
+            }
+        }
+    }
+
+private:
+    int digits;
+    int attempts;
+    int score;
+    int lives;
+    Difficulty difficulty;
+    std::string number;
+    std::chrono::seconds timeLimit;
+    int hintFrequency;
+    int specialRoundFrequency = 10;
+
+    void setDifficulty() {
+        switch (difficulty) {
+            case Difficulty::EASY:
+                timeLimit = std::chrono::seconds(0);
+                hintFrequency = 3;
+                break;
+            case Difficulty::MEDIUM:
+                timeLimit = std::chrono::seconds(30);
+                hintFrequency = 5;
+                break;
+            case Difficulty::HARD:
+                timeLimit = std::chrono::seconds(20);
+                hintFrequency = 0;
+                break;
+        }
+    }
+
+    void generateNumber() {
+        std::srand(std::time(nullptr));
+        number.clear();
+        while (number.size() < digits) {
+            char digit = '0' + std::rand() % 10;
+            if (number.find(digit) == std::string::npos) {
+                number += digit;
+            }
+        }
+    }
+
+    std::pair<int, int> checkGuess(const std::string &guess) {
+        int strikes = 0, balls = 0;
+        for (int i = 0; i < digits; ++i) {
+            if (guess[i] == number[i]) {
+                ++strikes;
+            } else {
+                auto it = std::find(number.begin(), number.end(), guess[i]);
+                if (it != number.end()) {
+                    ++balls;
+                }
+            }
+        }
+        return {strikes, balls};
+    }
+
+    void updateScore(int strikes, int balls) {
+        score -= (digits - strikes) * 5 + balls * 2;
+    }
+
+    void giveHint() {
+        std::cout << "ヒント: 含まれている数字の１つ = " << number[std::rand() % digits] << std::endl;
+    }
+
+    void specialRound() {
+        std::cout << "ボーナスタイム! このラウンドでは、ポイントが２倍になります!" << std::endl;
+        score *= 2; // Special round doubles the current score
+    }
+};
+
+int main() {
+    int digits;
+    int difficultyChoice;
+    std::cout << "予想する数字の桁数を3から5で決めてください: ";
+    std::cin >> digits;
+    while (digits < 3 || digits > 5) {
+        std::cout << "3から5の範囲にしてください: ";
+        std::cin >> digits;
+    }
+    std::cout << "難易度を選択してください: (0: 易, 1: 普通, 2: 難): ";
+    std::cin >> difficultyChoice;
+    Difficulty difficulty = static_cast<Difficulty>(difficultyChoice);
+
+    Ohtanisan game(digits, difficulty);
+    game.play();
+
+}
